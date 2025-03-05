@@ -9,33 +9,79 @@
     
 </body>
 <script>
+// Запросить доступ к микрофону
+console.log('Запрос доступа к микрофону...');
 navigator.mediaDevices.getUserMedia({ audio: true })
   .then(stream => {
+    console.log('Доступ к микрофону получен. Инициализация записи...');
+    
     const mediaRecorder = new MediaRecorder(stream);
-    let voice = [];
+    let voiceChunks = [];
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
 
+    // Обработчик для сбора аудиоданных
     mediaRecorder.addEventListener("dataavailable", function(event) {
-      voice.push(event.data);
+      console.log('Получены аудиодан размер размером:', event.data.size, 'байт');
+      voiceChunks.push(event.data);
     });
 
+    // Обработчик завершения записи
     mediaRecorder.addEventListener("stop", function() {
-      const voiceBlob = new Blob(voice, { type: 'audio/wav' });
+      console.log('Запись остановлена. Создание файла...');
       
-      let fd = new FormData();
-      fd.append('voice', voiceBlob);
+      // Создаем аудиофайл
+      const voiceBlob = new Blob(voiceChunks, { type: 'audio/wav' });
+      console.log('Создан аудиофайл:', voiceBlob);
 
-      fetch('http://localhost:8000/voice', {
+      // Формируем данные для отправки
+      const formData = new FormData();
+      formData.append('voice', voiceBlob, 'recording.wav');
+      console.log('Форма данных подготовлена');
+
+      // Отправка файла на сервер
+      console.log('Начало загрузки файла...');
+      fetch('http://example.com/voice', {
         method: 'POST',
-        body: fd
+        body: formData
       })
-      .then(response => response.json())
-      .then(data => console.log(data))
-      .catch(error => console.error('Error:', error));
+      .then(response => {
+        console.log('Ответ получен, статус:', response.status);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Успешная обработка:', data);
+        // Остановить все треки микрофона
+        stream.getTracks().forEach(track => track.stop());
+      })
+      .catch(error => console.error('Ошибка загрузки:', error));
+      
+      voiceChunks = []; // Очищаем буфер
     });
 
-    // Добавьте кнопки для запуска и остановки записи
+    // Управление кнопками
+    startBtn.addEventListener('click', () => {
+      console.log('Начало записи...');
+      mediaRecorder.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      voiceChunks = []; // Очищаем предыдущие данные
+    });
+
+    stopBtn.addEventListener('click', () => {
+      console.log('Запрос на остановку записи...');
+      if (mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    });
+
   })
-  .catch(error => console.error('Error:', error));
+  .catch(error => {
+    console.error('Ошибка доступа к микрофону:', error);
+    // Здесь можно добавить обработку ошибки для пользователя
+  });
 
 </script>
 </html>
